@@ -1,0 +1,443 @@
+Imports System.Math
+Imports AutoCAD
+
+Imports Microsoft.Office.Interop
+Public Class Form1
+    Sub change(ByRef asx As String, ByVal ax As Single)
+        ax = (ax * 180 / PI) * 3600
+        Dim a, b As Integer
+        Dim c As Double
+        a = Int(ax / 3600)
+        b = Int((ax Mod 3600) / 60)
+        c = ax Mod 60
+        asx = Str(a) & "º" & Str(b) & "'" & Str(c) & " ''"
+    End Sub
+    Dim EXCEL1 As Excel.Application
+    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        Dim asx As String = ""
+        MsgBox("打开用于保存数据的xls文件")
+        EXCEL1 = New Excel.Application
+        OpenFileDialog1.Filter = "(*.xls)|*.xls"
+        OpenFileDialog1.FilterIndex = 1
+        OpenFileDialog1.ShowDialog()
+        EXCEL1.Workbooks.Open(OpenFileDialog1.FileName)
+        Dim V, X0, Y0, XE, YE, XJD, YJD, K, KH, R, L As Double
+        V = Val(TextBox1.Text)
+        X0 = Val(TextBox2.Text)
+        Y0 = Val(TextBox3.Text)
+        XE = Val(TextBox4.Text)
+        YE = Val(TextBox5.Text)
+        XJD = Val(TextBox6.Text)
+        YJD = Val(TextBox7.Text)
+        K = Val(TextBox81.Text)
+        KH = Val(TextBox82.Text)
+        R = Val(TextBox9.Text)
+        L = Val(TextBox10.Text)
+        Dim A1, A2, A As Double
+        A1 = Atan((YJD - Y0) / (XJD - X0))
+        If (XJD - X0) < 0 Then
+            A1 = A1 + PI
+        Else
+            If (YJD - Y0) < 0 Then
+                A1 = A1 + 2 * PI
+            End If
+        End If
+        A2 = Atan((YE - YJD) / (XE - XJD))
+        If (XE - XJD) < 0 Then
+            A2 = A2 + PI
+        Else
+            If (YE - YJD) < 0 Then
+                A2 = A2 + 2 * PI
+            End If
+        End If
+        A = Abs(A2 - A1)
+        '计算要素
+        Dim q, dR, b, Th, Eh, Lh, D As Double
+        q = L / 2 - (L ^ 3) / (240 * (R ^ 2))
+        q = (Int(q * 1000)) * 1.0 / 1000 '切线增长值
+        dR = L * L / (24 * R) - (L ^ 4) / (2688 * (R ^ 3))
+        dR = (Int(dR * 1000)) * 1.0 / 1000 '内移值
+        b = 28.6479 * L / R '缓和曲线角
+        Th = (R + dR) * Tan(A / 2) + q
+        Th = (Int(Th * 1000)) * 1.0 / 1000 '切线总长
+        Eh = (R + dR) / Cos(A / 2) - R
+        Eh = (Int(Eh * 1000)) * 1.0 / 1000 '外矢距
+        Lh = (PI / 180) * R * ((A / PI) * 180 - 2 * b) + 2 * L
+        Lh = (Int(Lh * 1000)) * 1.0 / 1000 '曲线总长
+        D = 2 * Th - Lh
+        D = (Int(D * 1000)) * 1.0 / 1000 '超距
+        RichTextBox1.Text &= "切线增长值:" & q & "m" & vbCrLf
+        RichTextBox1.Text &= "内移值 " & dR & "m" & vbCrLf
+        RichTextBox1.Text &= "缓和曲线角 " & b & vbCrLf
+        RichTextBox1.Text &= "切线总长 " & Th & "m" & vbCrLf
+        RichTextBox1.Text &= "外矢距 " & Eh & "m" & vbCrLf
+        RichTextBox1.Text &= "曲线总长 " & Lh & "m" & vbCrLf
+        RichTextBox1.Text &= "超距 " & D & "m" & vbCrLf
+        Dim n As Integer
+        For n = 1 To 8
+            EXCEL1.Range(EXCEL1.Cells(n, 6), EXCEL1.Cells(n, 9)).Merge()
+        Next
+        For n = 1 To 8
+            EXCEL1.Range(EXCEL1.Cells(1, 6), EXCEL1.Cells(n, 6)).Merge()
+        Next
+        EXCEL1.Cells(1, 6) = RichTextBox1.Text
+        '计算主桩点
+        Dim LC, K0, KH0 As Double
+        Dim NUMBER(5, 1) As Double
+        K0 = K
+        KH0 = KH
+        LC = Sqrt(((YJD - Y0) ^ 2) + ((XJD - X0) ^ 2))
+        NUMBER(0, 1) = CInt(LC * 1000) * 1.0 / 1000
+        NUMBER(1, 1) = CInt((0 - Th) * 1000) * 1.0 / 1000
+        NUMBER(2, 1) = CInt(L * 1000) * 1.0 / 1000
+        NUMBER(3, 1) = CInt((Lh - L) * 1000) * 1.0 / 1000
+        NUMBER(4, 1) = CInt((0 - L) * 1000) * 1.0 / 1000
+        NUMBER(5, 1) = CInt((0 - 0.5 * (Lh - 2 * L)) * 1000) * 1.0 / 1000
+        Dim i As Integer
+        For i = 0 To 5
+
+            NUMBER(i, 1) = NUMBER(i, 1) + KH0
+            If NUMBER(i, 1) > 1000 Then
+                K0 = K0 + 1
+                NUMBER(i, 1) = CInt((NUMBER(i, 1) - 1000) * 1000) * 1.0 / 1000
+            End If
+            If NUMBER(i, 1) < 0 Then
+                K0 = K0 - 1
+                NUMBER(i, 1) = CInt((NUMBER(i, 1) + 1000) * 1000) * 1.0 / 1000
+            End If
+            NUMBER(i, 0) = K0
+            KH0 = NUMBER(i, 1)
+        Next
+        KH0 = KH0 + D / 2 - NUMBER(0, 1)
+        If Abs(KH0) > 0.1 Then
+            MsgBox("桩点计算错误")
+            Exit Sub
+        End If
+        RichTextBox2.Text = "ZH、HY、QZ、YH、HZ的桩号分别为" & vbCrLf
+        For i = 1 To 2
+            RichTextBox2.Text &= "K" & NUMBER(i， 0) & "+" & NUMBER(i, 1) & vbCrLf
+        Next
+        RichTextBox2.Text &= "K" & NUMBER(5， 0) & "+" & NUMBER(5, 1) & vbCrLf
+        For i = 3 To 4
+            RichTextBox2.Text &= "K" & NUMBER(7 - i， 0) & "+" & NUMBER(7 - i, 1) & vbCrLf
+        Next
+        For n = 10 To 16
+            EXCEL1.Range(EXCEL1.Cells(n, 6), EXCEL1.Cells(n, 8)).Merge()
+        Next
+        For n = 11 To 19
+            EXCEL1.Range(EXCEL1.Cells(10, 6), EXCEL1.Cells(n, 6)).Merge()
+        Next
+        EXCEL1.Cells(10, 6) = RichTextBox2.Text
+        Dim KZ1, KZ0, KH1 As Double
+        Dim K1 As Integer
+        Dim NUM As String
+        KZ0 = K * 1000 + KH
+        KZ1 = 10
+        EXCEL1.Cells(1, 1) = "桩号"
+        EXCEL1.Cells(1, 2) = "X"
+        EXCEL1.Cells(1, 3) = "Y"
+        EXCEL1.Cells(1, 4) = "方位角"
+        EXCEL1.Cells(2, 1) = "K" & K & "+" & KH
+        EXCEL1.Cells(2, 2) = X0
+        EXCEL1.Cells(2, 3) = Y0
+        EXCEL1.Cells(2, 4) = "\"
+        Dim X, Y, X1, Y1, AX As Double
+        X1 = X0
+        Y1 = Y0
+        i = 3
+        Do While (KZ1 + KZ0) < NUMBER(1, 0) * 1000 + NUMBER(1, 1)
+            X = X0 + KZ1 * Cos(A1)
+
+            Y = Y0 + KZ1 * Sin(A1)
+            X = (Int(X * 1000)) * 1.0 / 1000
+            Y = (Int(Y * 1000)) * 1.0 / 1000
+            K1 = Int((KZ1 + KZ0) / 1000)
+            KH1 = (KZ1 + KZ0) Mod 1000
+            AX = Atan((Y - Y1) / (X - X1))
+            If (X - X1) < 0 Then
+                AX = AX + PI
+            Else
+                If (Y - Y1) < 0 Then
+                    AX = AX + 2 * PI
+                End If
+            End If
+            Call change(asx, AX)
+            NUM = "K" & K1 & "+" & KH1
+            EXCEL1.Cells(i, 1) = NUM
+            EXCEL1.Cells(i, 2) = X
+            EXCEL1.Cells(i, 3) = Y
+            EXCEL1.Cells(i, 4) = asx
+            KZ1 = KZ1 + 10
+            X1 = X
+            Y1 = Y
+            i = i + 1
+        Loop
+        X = X0 + ((NUMBER(1, 0) * 1000 + NUMBER(1, 1)) - KZ0) * Cos(A1)
+        Y = Y0 + ((NUMBER(1, 0) * 1000 + NUMBER(1, 1)) - KZ0) * Sin(A1)
+        X = (Int(X * 1000)) * 1.0 / 1000
+        Y = (Int(Y * 1000)) * 1.0 / 1000
+        AX = Atan((Y - Y1) / (X - X1))
+        If (X - X1) < 0 Then
+            AX = AX + PI
+        Else
+            If (Y - Y1) < 0 Then
+                AX = AX + 2 * PI
+            End If
+        End If
+        Call change(asx, AX)
+        EXCEL1.Cells(i, 1) = "K" & NUMBER(1， 0) & "+" & NUMBER(1, 1)
+        EXCEL1.Cells(i, 2) = X
+        EXCEL1.Cells(i, 3) = Y
+        EXCEL1.Cells(i, 4) = asx
+        X1 = X
+        Y1 = Y
+        i = i + 1
+        Dim XT, YT As Double
+        XT = X
+        YT = Y
+
+        Dim LS As Double
+        Do While (KZ1 + KZ0) < NUMBER(2, 0) * 1000 + NUMBER(2, 1)
+            LS = (KZ1 + KZ0) - (NUMBER(1, 0) * 1000 + NUMBER(1, 1))
+            X = XT + (LS - (LS ^ 5) / (40 * (R ^ 2) * (L ^ 2))) * Cos(A1) + (((LS ^ 3) / (6 * R * L))) * Cos(A1 + PI / 2)
+            Y = YT + (LS - (LS ^ 5) / (40 * R * R * L * L)) * Sin(A1) + ((LS ^ 3) / (6 * R * L)) * Sin(A1 + PI / 2)
+            X = (Int(X * 1000)) * 1.0 / 1000
+            Y = (Int(Y * 1000)) * 1.0 / 1000
+            K1 = Int((KZ1 + KZ0) / 1000)
+            KH1 = (KZ1 + KZ0) Mod 1000
+            AX = Atan((Y - Y1) / (X - X1))
+            If (X - X1) < 0 Then
+                AX = AX + PI
+            Else
+                If (Y - Y1) < 0 Then
+                    AX = AX + 2 * PI
+                End If
+            End If
+            Call change(asx, AX)
+            NUM = "K" & K1 & "+" & KH1
+            EXCEL1.Cells(i, 1) = NUM
+            EXCEL1.Cells(i, 2) = X
+            EXCEL1.Cells(i, 3) = Y
+            EXCEL1.Cells(i, 4) = asx
+            KZ1 = KZ1 + 10
+            X1 = X
+            Y1 = Y
+            i = i + 1
+        Loop
+        X = XT + (L - (L ^ 3) / (40 * (R ^ 2))) * Cos(A1) + ((L ^ 2) / (6 * R)) * Cos(A1 + PI / 2)
+        Y = YT + (L - ((L ^ 3) / (40 * R * R))) * Sin(A1) + ((L ^ 2) / (6 * R)) * Sin(A1 + PI / 2)
+        X = (Int(X * 1000)) * 1.0 / 1000
+        Y = (Int(Y * 1000)) * 1.0 / 1000
+        AX = Atan((Y - Y1) / (X - X1))
+        If (X - X1) < 0 Then
+            AX = AX + PI
+        Else
+            If (Y - Y1) < 0 Then
+                AX = AX + 2 * PI
+            End If
+        End If
+        Call change(asx, AX)
+        EXCEL1.Cells(i, 1) = "K" & NUMBER(2， 0) & "+" & NUMBER(2, 1)
+        EXCEL1.Cells(i, 2) = X
+        EXCEL1.Cells(i, 3) = Y
+        EXCEL1.Cells(i, 4) = asx
+        X1 = X
+        Y1 = Y
+        i = i + 1
+        XT = X
+        YT = Y
+        Do While (KZ1 + KZ0) < NUMBER(4, 0) * 1000 + NUMBER(4, 1)
+            LS = (KZ1 + KZ0) - (NUMBER(2, 0) * 1000 + NUMBER(2, 1))
+            X = XT + (LS - (LS ^ 3) / (6 * R * R) + (LS ^ 5) / (120 * (R ^ 4))) * Cos(A1 + b * PI / 180) + (LS * LS / (2 * R) - (LS ^ 4) / (24 * R * R * R) + (L ^ 6) / (720 * (R ^ 5))) * Cos(A1 + b * PI / 180 + PI / 2)
+
+            Y = YT + (LS - (LS ^ 3) / (6 * R * R) + (LS ^ 5) / (120 * (R ^ 4))) * Sin(A1 + b * PI / 180) + (LS * LS / (2 * R) - (LS ^ 4) / (24 * R * R * R) + (L ^ 6) / (720 * (R ^ 5))) * Sin(A1 + b * PI / 180 + PI / 2)
+            X = (Int(X * 1000)) * 1.0 / 1000
+            Y = (Int(Y * 1000)) * 1.0 / 1000
+            K1 = Int((KZ1 + KZ0) / 1000)
+            KH1 = (KZ1 + KZ0) Mod 1000
+            AX = Atan((Y - Y1) / (X - X1))
+            If (X - X1) < 0 Then
+                AX = AX + PI
+            Else
+                If (Y - Y1) < 0 Then
+                    AX = AX + 2 * PI
+                End If
+            End If
+            Call change(asx, AX)
+            NUM = "K" & K1 & "+" & KH1
+            EXCEL1.Cells(i, 1) = NUM
+            EXCEL1.Cells(i, 2) = X
+            EXCEL1.Cells(i, 3) = Y
+            EXCEL1.Cells(i, 4) = asx
+            KZ1 = KZ1 + 10
+            X1 = X
+            Y1 = Y
+            i = i + 1
+        Loop
+        LS = NUMBER(4, 0) * 1000 + NUMBER(4, 1) - (NUMBER(2, 0) * 1000 + NUMBER(2, 1))
+        X = XT + (LS - (LS ^ 3) / (6 * R * R) + (LS ^ 5) / (120 * (R ^ 4))) * Cos(A1 + b * PI / 180) + (LS * LS / (2 * R) - (LS ^ 4) / (24 * R * R * R) + (L ^ 6) / (720 * (R ^ 5))) * Cos(A1 + b * PI / 180 + PI / 2)
+
+        Y = YT + (LS - (LS ^ 3) / (6 * R * R) + (LS ^ 5) / (120 * (R ^ 4))) * Sin(A1 + b * PI / 180) + (LS * LS / (2 * R) - (LS ^ 4) / (24 * R * R * R) + (L ^ 6) / (720 * (R ^ 5))) * Sin(A1 + b * PI / 180 + PI / 2)
+
+        X = (Int(X * 1000)) * 1.0 / 1000
+        Y = (Int(Y * 1000)) * 1.0 / 1000
+        AX = Atan((Y - Y1) / (X - X1))
+        If (X - X1) < 0 Then
+            AX = AX + PI
+        Else
+            If (Y - Y1) < 0 Then
+                AX = AX + 2 * PI
+            End If
+        End If
+        Call change(asx, AX)
+        EXCEL1.Cells(i, 1) = "K" & NUMBER(4， 0) & "+" & NUMBER(4, 1)
+        EXCEL1.Cells(i, 2) = X
+        EXCEL1.Cells(i, 3) = Y
+        EXCEL1.Cells(i, 4) = asx
+        X1 = X
+        Y1 = Y
+        i = i + 1
+        XT = XJD + Th * Cos(A2)
+        YT = YJD + Th * Sin(A2)
+        XT = (Int(XT * 1000)) * 1.0 / 1000
+        YT = (Int(YT * 1000)) * 1.0 / 1000
+        Do While (KZ1 + KZ0) < NUMBER(3, 0) * 1000 + NUMBER(3, 1)
+            LS = (NUMBER(3, 0) * 1000 + NUMBER(3, 1)) - (KZ1 + KZ0)
+            X = XT + (LS - (LS ^ 5) / (40 * R * R * L * L)) * Cos(A2 - PI) + ((LS ^ 3) / (6 * R * L)) * Cos(A2 + PI / 2)
+            Y = YT + (LS - (LS ^ 5) / (40 * R * R * L * L)) * Sin(A2 - PI) + ((LS ^ 3) / (6 * R * L)) * Sin(A2 + PI / 2)
+            X = (Int(X * 1000)) * 1.0 / 1000
+            Y = (Int(Y * 1000)) * 1.0 / 1000
+            K1 = Int((KZ1 + KZ0) / 1000)
+            KH1 = (KZ1 + KZ0) Mod 1000
+            AX = Atan((Y - Y1) / (X - X1))
+            If (X - X1) < 0 Then
+                AX = AX + PI
+            Else
+                If (Y - Y1) < 0 Then
+                    AX = AX + 2 * PI
+                End If
+            End If
+            Call change(asx, AX)
+            NUM = "K" & K1 & "+" & KH1
+            EXCEL1.Cells(i, 1) = NUM
+            EXCEL1.Cells(i, 2) = (Int(X * 1000)) * 1.0 / 1000
+            EXCEL1.Cells(i, 3) = (Int(Y * 1000)) * 1.0 / 1000
+            EXCEL1.Cells(i, 4) = asx
+            KZ1 = KZ1 + 10
+            X1 = X
+            Y1 = Y
+            i = i + 1
+        Loop
+        AX = Atan((YT - Y1) / (XT - X1))
+        If (XT - X1) < 0 Then
+            AX = AX + PI
+        Else
+            If (YT - Y1) < 0 Then
+                AX = AX + 2 * PI
+            End If
+        End If
+        Call change(asx, AX)
+        EXCEL1.Cells(i, 1) = "K" & NUMBER(3， 0) & "+" & NUMBER(3, 1)
+        EXCEL1.Cells(i, 2) = (Int(XT * 1000)) * 1.0 / 1000
+        EXCEL1.Cells(i, 3) = (Int(YT * 1000)) * 1.0 / 1000
+        EXCEL1.Cells(i, 4) = asx
+        X1 = XT
+        Y1 = YT
+        i = i + 1
+        LS = Sqrt(((XE - XT) ^ 2) + ((YE - YT) ^ 2))
+
+        Dim KE As Integer
+        Dim KHE As Double
+        KE = Int(LS / 1000) + NUMBER(3， 0)
+        KHE = (LS Mod 1000) + NUMBER(3, 1)
+        If KHE > 1000 Then
+            KE = KE + 1
+            KHE = KHE - 1000
+        End If
+        Do While (KZ1 + KZ0) < KE * 1000 + KHE
+            LS = (KZ1 + KZ0) - (NUMBER(3, 0) * 1000 + NUMBER(3, 1))
+            X = XT + LS * Cos(A2)
+            Y = YT + LS * Sin(A2)
+
+            K1 = Int((KZ1 + KZ0) / 1000)
+            KH1 = (KZ1 + KZ0) Mod 1000
+            AX = Atan((Y - Y1) / (X - X1))
+            If (X - X1) < 0 Then
+                AX = AX + PI
+            Else
+                If (Y - Y1) < 0 Then
+                    AX = AX + 2 * PI
+                End If
+            End If
+            Call change(asx, AX)
+            NUM = "K" & K1 & "+" & KH1
+            EXCEL1.Cells(i, 1) = NUM
+            EXCEL1.Cells(i, 2) = (Int(X * 1000)) * 1.0 / 1000
+            EXCEL1.Cells(i, 3) = (Int(Y * 1000)) * 1.0 / 1000
+            EXCEL1.Cells(i, 4) = asx
+            KZ1 = KZ1 + 10
+            X1 = X
+            Y1 = Y
+            i = i + 1
+        Loop
+        AX = Atan((YE - Y1) / (XE - X1))
+        If (XE - X1) < 0 Then
+            AX = AX + PI
+        Else
+            If (YE - Y1) < 0 Then
+                AX = AX + 2 * PI
+            End If
+        End If
+        Call change(asx, AX)
+        KHE = (CInt(KHE * 1000)) * 1.0 / 1000
+        EXCEL1.Cells(i, 1) = "K" & KE & "+" & KHE
+        EXCEL1.Cells(i, 2) = (Int(XE * 1000)) * 1.0 / 1000
+        EXCEL1.Cells(i, 3) = (Int(YE * 1000)) * 1.0 / 1000
+        EXCEL1.Cells(i, 4) = asx
+        EXCEL1.Cells(1, 11) = "CAD坐标"
+        For n = 2 To i
+            EXCEL1.Cells(n, 11) = EXCEL1.Cells(n, 3).VALUE & "," & EXCEL1.Cells(n, 2).VALUE
+        Next
+        Try
+            EXCEL1.ActiveWorkbook.Save()
+        Catch EX As Exception
+            MsgBox("文件为只读状态，请手动另存为")
+        End Try
+        EXCEL1.Visible = True
+
+    End Sub
+
+    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+        TextBox1.Text = ""
+        TextBox2.Text = ""
+        TextBox3.Text = ""
+        TextBox4.Text = ""
+        TextBox5.Text = ""
+        TextBox6.Text = ""
+        TextBox7.Text = ""
+        TextBox81.Text = ""
+        TextBox82.Text = ""
+        TextBox9.Text = ""
+        TextBox10.Text = ""
+        RichTextBox1.Text = ""
+        RichTextBox2.Text = ""
+        Try
+            EXCEL1.Quit()
+        Catch ex As Exception
+        End Try
+        EXCEL1 = Nothing
+    End Sub
+
+
+
+    Private Sub Button6_Click(sender As Object, e As EventArgs) Handles Button6.Click
+        Try
+            EXCEL1.Quit()
+        Catch ex As Exception
+        End Try
+        EXCEL1 = Nothing
+        End
+    End Sub
+
+
+End Class
